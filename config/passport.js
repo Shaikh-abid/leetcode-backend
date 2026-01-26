@@ -9,7 +9,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_REDIRECT_URI,
+      callbackURL: "https://leetcode-backend-main.onrender.com/api/auth/google/callback",
       proxy: true // 👈 ADD THIS LINE (Crucial for Render)
     },
     async (accessToken, refreshToken, profile, done) => {
