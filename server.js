@@ -15,7 +15,8 @@ connectDB();
 
 const PORT = process.env.PORT || 5000;
 const app = express();
-
+// 👇 ADD THIS LINE
+app.set("trust proxy", 1);
 app.use(
   cors({
     origin: process.env.CLIENT_URL, // e.g., 'http://localhost:8080'
