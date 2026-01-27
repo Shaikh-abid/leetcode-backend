@@ -109,39 +109,6 @@ const login = async (req, res) => {
 };
 
 
-// --- Google Callback ---
-const googleAuthCallback = (req, res) => {
-  if (!req.user) {
-    return res.redirect(
-      `${process.env.CLIENT_URL}/login?error=NoUserFromGoogle`,
-    );
-  }
-
-  const { accessToken, refreshToken } = generateTokens(req.user._id);
-
-  // Set cookie
-  res.cookie("refreshToken", refreshToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  });
-
-  // Pass user info in URL
-  const userData = JSON.stringify({
-    _id: req.user._id, // Standardize on _id
-    username: req.user.username,
-    email: req.user.email,
-    isAdmin: req.user.isAdmin,
-    solvedProblems: req.user.solvedProblems,
-    // ... other fields
-  });
-
-  return res.redirect(
-    `${process.env.CLIENT_URL}/auth-success?token=${accessToken}&user=${encodeURIComponent(userData)}`,
-  );
-};
-
 // --- Logout ---
 const logout = (req, res) => {
   res.clearCookie("refreshToken", {
@@ -208,4 +175,86 @@ const updateProfile = async (req, res) => {
   }
 };
 
-export { register, login, googleAuthCallback, logout, updateProfile };
+
+
+// --- 1. Modify the Google Callback (Don't set cookie here) ---
+const googleAuthCallback = (req, res) => {
+  try {
+    if (!req.user) {
+      return res.redirect(`${process.env.CLIENT_URL}/login?error=GoogleAuthFailed`);
+    }
+
+    // Generate a temporary "Exchange Token" (Short life: 5 mins)
+    // We only put the userId in here.
+    const tempToken = jwt.sign(
+      { userId: req.user._id }, 
+      process.env.JWT_SECRET, 
+      { expiresIn: "5m" }
+    );
+
+    // Redirect to frontend with the TEMP token (NOT the refresh token)
+    // We don't send user data in URL anymore (it's cleaner)
+    return res.redirect(
+      `${process.env.CLIENT_URL}/auth-success?code=${tempToken}`
+    );
+  } catch (error) {
+    console.error("Google Callback Error:", error);
+    return res.redirect(`${process.env.CLIENT_URL}/login?error=ServerCallbackError`);
+  }
+};
+
+// --- 2. Add New Function: Complete Google Login ---
+const completeGoogleLogin = async (req, res) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: "No authorization code provided" });
+    }
+
+    // Verify the temporary token
+    const decoded = jwt.verify(code, process.env.JWT_SECRET);
+    
+    // Find the user
+    const user = await User.findById(decoded.userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    // NOW generate the real tokens
+    const { accessToken, refreshToken } = generateTokens(user._id);
+
+    // Set the Real Cookie (This works because it's a direct Fetch request!)
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    });
+
+    // Return success
+    return res.json({
+      success: true,
+      message: "Google Login Successful",
+      accessToken,
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        isAdmin: user.isAdmin,
+        solvedProblems: user.solvedProblems,
+        createdAt: user.createdAt,
+        bio: user.bio,
+        city: user.city,
+        country: user.country,
+        skills: user.skills,
+      },
+    });
+
+  } catch (error) {
+    console.error("Complete Google Login Error:", error.message);
+    return res.status(401).json({ success: false, message: "Invalid or expired login code" });
+  }
+};
+
+export { register, login, googleAuthCallback, logout, updateProfile, completeGoogleLogin };

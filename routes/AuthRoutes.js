@@ -5,6 +5,7 @@ import {
   googleAuthCallback,
   logout,
   updateProfile,
+  completeGoogleLogin,
 } from "../controller/authController.js";
 import passport from "passport";
 import protect from "../middleware/authMiddleware.js";
@@ -35,5 +36,8 @@ router.get(
   }),
   googleAuthCallback
 );
+
+// 👇 ADD THIS NEW ROUTE
+router.post('/google-success', completeGoogleLogin);
 
 export default router;
