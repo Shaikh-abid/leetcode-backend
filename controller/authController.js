@@ -4,14 +4,13 @@ import jwt from "jsonwebtoken";
 
 // --- Helper: Generate Tokens ---
 const generateTokens = (userId) => {
+  // We use "userId" as the standard key now
   const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
     expiresIn: "15m",
   });
-  const refreshToken = jwt.sign(
-    { userId },
-    process.env.JWT_REFRESH_SECRET,
-    { expiresIn: "7d" }
-  );
+  const refreshToken = jwt.sign({ userId }, process.env.JWT_REFRESH_SECRET, {
+    expiresIn: "7d",
+  });
   return { accessToken, refreshToken };
 };
 
@@ -59,9 +58,10 @@ const login = async (req, res) => {
     // 2. Check password
     // If user has no password (e.g., Google Auth only), block password login
     if (!user.password) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "This account uses Google Login. Please use Google to sign in." 
+      return res.status(400).json({
+        success: false,
+        message:
+          "This account uses Google Login. Please use Google to sign in.",
       });
     }
 
@@ -79,7 +79,7 @@ const login = async (req, res) => {
     res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       // 👇 CRITICAL for Render deployment
-      secure: process.env.NODE_ENV === "production", 
+      secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
@@ -108,47 +108,38 @@ const login = async (req, res) => {
   }
 };
 
-// --- Google Callback Handler ---
+
+// --- Google Callback ---
 const googleAuthCallback = (req, res) => {
-  try {
-    // Passport puts the user in req.user
-    if (!req.user) {
-      return res.redirect(`${process.env.CLIENT_URL}/login?error=GoogleAuthFailed`);
-    }
-
-    const { accessToken, refreshToken } = generateTokens(req.user._id);
-
-    // Set cookie
-    res.cookie("refreshToken", refreshToken, {
-      httpOnly: true,
-      // 👇 CRITICAL for Render deployment
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
-
-    // Prepare user data for URL
-    const userData = JSON.stringify({
-      _id: req.user._id,
-      username: req.user.username,
-      email: req.user.email,
-      isAdmin: req.user.isAdmin,
-      solvedProblems: req.user.solvedProblems,
-      createdAt: req.user.createdAt,
-      bio: req.user.bio,
-      city: req.user.city,
-      country: req.user.country,
-      skills: req.user.skills,
-    });
-
-    // Redirect to frontend with Token and User Data
+  if (!req.user) {
     return res.redirect(
-      `${process.env.CLIENT_URL}/auth-success?token=${accessToken}&user=${encodeURIComponent(userData)}`
+      `${process.env.CLIENT_URL}/login?error=NoUserFromGoogle`,
     );
-  } catch (error) {
-    console.error("Google Callback Error:", error);
-    return res.redirect(`${process.env.CLIENT_URL}/login?error=ServerCallbackError`);
   }
+
+  const { accessToken, refreshToken } = generateTokens(req.user._id);
+
+  // Set cookie
+  res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  });
+
+  // Pass user info in URL
+  const userData = JSON.stringify({
+    _id: req.user._id, // Standardize on _id
+    username: req.user.username,
+    email: req.user.email,
+    isAdmin: req.user.isAdmin,
+    solvedProblems: req.user.solvedProblems,
+    // ... other fields
+  });
+
+  return res.redirect(
+    `${process.env.CLIENT_URL}/auth-success?token=${accessToken}&user=${encodeURIComponent(userData)}`,
+  );
 };
 
 // --- Logout ---
@@ -177,7 +168,7 @@ const updateProfile = async (req, res) => {
     // Skills should be an array of strings
     if (Array.isArray(skills)) {
       updates.skills = skills.filter(
-        (skill) => typeof skill === "string" && skill.trim()
+        (skill) => typeof skill === "string" && skill.trim(),
       );
     }
 
@@ -193,7 +184,7 @@ const updateProfile = async (req, res) => {
     const updatedUser = await User.findByIdAndUpdate(
       user._id,
       { $set: updates },
-      { new: true, runValidators: true } // return updated doc + validate
+      { new: true, runValidators: true }, // return updated doc + validate
     ).select("-password -__v"); // don't send sensitive fields
 
     if (!updatedUser) {
