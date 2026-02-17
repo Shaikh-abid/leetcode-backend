@@ -10,6 +10,7 @@ import ProblemRoutes from "./routes/ProblemRoute.js";
 import AuthRoutes from "./routes/AuthRoutes.js";
 import SubmissionRoutes from "./routes/SubmissionRoutes.js";
 import PlaylistRoutes from "./routes/PlaylistRoutes.js";
+import AiRoutes from "./routes/AiRoutes.js";
 
 connectDB();
 
@@ -31,6 +32,7 @@ app.use("/api/auth", AuthRoutes);
 app.use("/api/problems", ProblemRoutes);
 app.use("/api/submissions", SubmissionRoutes);
 app.use("/api/playlists", PlaylistRoutes);
+app.use("/api/ai", AiRoutes);
 
 app.get("/", (_, res) => {
   res.send("Hello World!");
